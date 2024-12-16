@@ -1,28 +1,37 @@
-from flask import Flask, request, jsonify
-import requests
+from flask import Flask, render_template, request, redirect, url_for, jsonify
+from whatsapp_client import WhatsAppClient  # Biblioteca para QR Code (Exemplo)
+import sqlite3
 
 app = Flask(__name__)
 
-# Token de acesso do WhatsApp
-TOKEN = "SEU_TOKEN_AQUI"
+# Conexão com o banco
+def get_db_connection():
+    conn = sqlite3.connect('database/crm.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
-@app.route('/send_message', methods=['POST'])
-def send_message():
-    data = request.json
-    phone_number = data.get('phone_number')
-    message = data.get('message')
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/contatos', methods=['GET', 'POST'])
+def whatsapp():
+    qr_code = client.get_qr_code()
+    return render_template('whatsapp.html', qr_code=qr_code)
+
+def contatos():
+    conn = get_db_connection()
+    if request.method == 'POST':
+        nome = request.form['nome']
+        telefone = request.form['telefone']
+        conn.execute('INSERT INTO contatos (nome, telefone) VALUES (?, ?)', (nome, telefone))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('contatos'))
     
-    url = f"https://graph.facebook.com/v17.0/ID_DO_SEU_NUMERO/messages"
-    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": phone_number,
-        "type": "text",
-        "text": {"body": message}
-    }
-    
-    response = requests.post(url, json=payload, headers=headers)
-    return jsonify(response.json())
+    contatos = conn.execute('SELECT * FROM contatos').fetchall()
+    conn.close()
+    return render_template('contatos.html', contatos=contatos)
 
 if __name__ == '__main__':
     app.run(debug=True)
